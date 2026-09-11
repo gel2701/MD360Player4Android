@@ -1,26 +1,21 @@
 package com.asha.md360player4android;
 
 import android.content.Context;
-import android.content.res.AssetManager;
+import android.content.res.AssetFileDescriptor;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.view.Surface;
 
 import java.io.IOException;
-import java.io.InputStream;
-
-import tv.danmaku.ijk.media.player.IMediaPlayer;
-import tv.danmaku.ijk.media.player.IjkMediaPlayer;
-import tv.danmaku.ijk.media.player.misc.IMediaDataSource;
 
 /**
- * Created by hzqiujiadi on 16/4/5.
- * hzqiujiadi ashqalcn@gmail.com
- *
- * http://developer.android.com/intl/zh-cn/reference/android/media/MediaPlayer.html
- * status
+ * Lightweight wrapper around Android's built-in MediaPlayer.
+ * Replaces the legacy IJKPlayer dependency while preserving the 360 video flow.
  */
-public class MediaPlayerWrapper implements IMediaPlayer.OnPreparedListener {
-    protected IMediaPlayer mPlayer;
-    private IjkMediaPlayer.OnPreparedListener mPreparedListener;
+public class MediaPlayerWrapper implements MediaPlayer.OnPreparedListener {
+    protected MediaPlayer mPlayer;
+    private MediaPlayer.OnPreparedListener mPreparedListener;
+
     private static final int STATUS_IDLE = 0;
     private static final int STATUS_PREPARING = 1;
     private static final int STATUS_PREPARED = 2;
@@ -29,117 +24,94 @@ public class MediaPlayerWrapper implements IMediaPlayer.OnPreparedListener {
     private static final int STATUS_STOPPED = 5;
     private int mStatus = STATUS_IDLE;
 
-    public void init(){
+    public void init() {
+        destroy();
         mStatus = STATUS_IDLE;
-        mPlayer = new IjkMediaPlayer();
+        mPlayer = new MediaPlayer();
+        mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
         mPlayer.setOnPreparedListener(this);
-        mPlayer.setOnInfoListener(new IMediaPlayer.OnInfoListener() {
-            @Override
-            public boolean onInfo(IMediaPlayer mp, int what, int extra) {
-                return false;
-            }
-        });
-
-        enableHardwareDecoding();
     }
 
-    private void enableHardwareDecoding(){
-        if (mPlayer instanceof IjkMediaPlayer){
-            IjkMediaPlayer player = (IjkMediaPlayer) mPlayer;
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "overlay-format", IjkMediaPlayer.SDL_FCC_RV32);
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 60);
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-fps", 0);
-            player.setOption(IjkMediaPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 48);
+    public void setSurface(Surface surface) {
+        if (mPlayer != null) {
+            mPlayer.setSurface(surface);
         }
     }
 
-    public void setSurface(Surface surface){
-        if (getPlayer() != null){
-            getPlayer().setSurface(surface);
-        }
-    }
-
-    public void openRemoteFile(String url){
+    public void openRemoteFile(String url) {
+        if (mPlayer == null) return;
         try {
             mPlayer.setDataSource(url);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException("Unable to open media source: " + url, e);
         }
     }
 
     public void openAssetFile(Context context, String assetPath) {
+        if (mPlayer == null) return;
+        AssetFileDescriptor afd = null;
         try {
-            AssetManager am = context.getResources().getAssets();
-            final InputStream is = am.open(assetPath);
-            mPlayer.setDataSource(new IMediaDataSource() {
-                @Override
-                public int readAt(long position, byte[] buffer, int offset, int size) throws IOException {
-                    return is.read(buffer, offset, size);
-                }
-
-                @Override
-                public long getSize() throws IOException {
-                    return is.available();
-                }
-
-                @Override
-                public void close() throws IOException {
-                    is.close();
-                }
-            });
+            afd = context.getAssets().openFd(assetPath);
+            mPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException("Unable to open asset: " + assetPath, e);
+        } finally {
+            if (afd != null) {
+                try {
+                    afd.close();
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
-    public IMediaPlayer getPlayer() {
+    public MediaPlayer getPlayer() {
         return mPlayer;
     }
 
     public void prepare() {
         if (mPlayer == null) return;
-        if (mStatus == STATUS_IDLE || mStatus == STATUS_STOPPED){
+        if (mStatus == STATUS_IDLE || mStatus == STATUS_STOPPED) {
             mPlayer.prepareAsync();
             mStatus = STATUS_PREPARING;
         }
     }
 
-    public void stop(){
+    public void stop() {
         if (mPlayer == null) return;
-        if (mStatus == STATUS_STARTED || mStatus ==  STATUS_PAUSED){
+        if (mStatus == STATUS_STARTED || mStatus == STATUS_PAUSED || mStatus == STATUS_PREPARED) {
             mPlayer.stop();
             mStatus = STATUS_STOPPED;
         }
     }
 
-    public void pause(){
+    public void pause() {
         if (mPlayer == null) return;
-        if (mPlayer.isPlaying() && mStatus == STATUS_STARTED) {
+        if (mStatus == STATUS_STARTED && mPlayer.isPlaying()) {
             mPlayer.pause();
             mStatus = STATUS_PAUSED;
         }
     }
 
-    private void start(){
+    private void start() {
         if (mPlayer == null) return;
-        if (mStatus == STATUS_PREPARED || mStatus == STATUS_PAUSED){
+        if (mStatus == STATUS_PREPARED || mStatus == STATUS_PAUSED) {
             mPlayer.start();
             mStatus = STATUS_STARTED;
         }
-
     }
 
-    public void setPreparedListener(IMediaPlayer.OnPreparedListener mPreparedListener) {
-        this.mPreparedListener = mPreparedListener;
+    public void setPreparedListener(MediaPlayer.OnPreparedListener preparedListener) {
+        this.mPreparedListener = preparedListener;
     }
 
     @Override
-    public void onPrepared(IMediaPlayer mp) {
+    public void onPrepared(MediaPlayer mp) {
         mStatus = STATUS_PREPARED;
         start();
-        if (mPreparedListener != null) mPreparedListener.onPrepared(mp);
+        if (mPreparedListener != null) {
+            mPreparedListener.onPrepared(mp);
+        }
     }
 
     public void resume() {
@@ -147,11 +119,16 @@ public class MediaPlayerWrapper implements IMediaPlayer.OnPreparedListener {
     }
 
     public void destroy() {
-        stop();
         if (mPlayer != null) {
+            try {
+                stop();
+            } catch (IllegalStateException ignored) {
+            }
             mPlayer.setSurface(null);
+            mPlayer.reset();
             mPlayer.release();
+            mPlayer = null;
         }
-        mPlayer = null;
+        mStatus = STATUS_IDLE;
     }
 }
