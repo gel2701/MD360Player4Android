@@ -113,6 +113,9 @@ public abstract class MD360PlayerActivity extends Activity {
     private static void start(Context context, Uri uri, Class<? extends Activity> clz){
         Intent i = new Intent(context,clz);
         i.setData(uri);
+        if (uri != null && "content".equalsIgnoreCase(uri.getScheme())) {
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        }
         context.startActivity(i);
     }
 
