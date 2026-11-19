@@ -1,6 +1,7 @@
 package com.asha.md360player4android;
 
 import android.media.MediaPlayer;
+import java.io.IOException;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
@@ -41,7 +42,8 @@ public class VideoPlayerActivity extends MD360PlayerActivity {
             @Override
             public boolean onError(MediaPlayer mp, int what, int extra) {
                 String error = String.format("Play Error what=%d extra=%d", what, extra);
-                Toast.makeText(VideoPlayerActivity.this, error, Toast.LENGTH_SHORT).show();
+                cancelBusy();
+                Toast.makeText(VideoPlayerActivity.this, error + " (unsupported codec or damaged video)", Toast.LENGTH_LONG).show();
                 return true;
             }
         });
@@ -55,18 +57,40 @@ public class VideoPlayerActivity extends MD360PlayerActivity {
 
         Uri uri = getUri();
         if (uri != null) {
-            mMediaPlayerWrapper.openRemoteFile(uri.toString());
-            mMediaPlayerWrapper.prepare();
+            try {
+                mMediaPlayerWrapper.openFile(this, uri);
+                mMediaPlayerWrapper.prepare();
+            } catch (IOException | IllegalStateException e) {
+                cancelBusy();
+                Toast.makeText(this, "Cannot open video: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         }
 
         findViewById(R.id.control_next).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                mMediaPlayerWrapper.pause();
-                mMediaPlayerWrapper.destroy();
-                mMediaPlayerWrapper.init();
-                mMediaPlayerWrapper.openRemoteFile(DemoActivity.sPath + "video_31b451b7ca49710719b19d22e19d9e60.mp4");
-                mMediaPlayerWrapper.prepare();
+                // Replay the selected video rather than a missing legacy demo file.
+                Uri selected = getUri();
+                if (selected != null) {
+                    mMediaPlayerWrapper.pause();
+                    mMediaPlayerWrapper.init();
+                    mMediaPlayerWrapper.getPlayer().setOnErrorListener((mp, what, extra) -> {
+                        cancelBusy();
+                        Toast.makeText(VideoPlayerActivity.this, "Playback failed (" + what + "/" + extra + ")", Toast.LENGTH_LONG).show();
+                        return true;
+                    });
+                    mMediaPlayerWrapper.setPreparedListener(mp -> {
+                        cancelBusy();
+                        if (getVRLibrary() != null) getVRLibrary().notifyPlayerChanged();
+                    });
+                    try {
+                        mMediaPlayerWrapper.openFile(VideoPlayerActivity.this, selected);
+                        mMediaPlayerWrapper.prepare();
+                    } catch (IOException | IllegalStateException e) {
+                        cancelBusy();
+                        Toast.makeText(VideoPlayerActivity.this, "Cannot replay video: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                }
             }
         });
     }
