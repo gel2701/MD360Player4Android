@@ -2,6 +2,7 @@ package com.asha.md360player4android;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.net.Uri;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.view.Surface;
@@ -44,6 +45,18 @@ public class MediaPlayerWrapper implements MediaPlayer.OnPreparedListener {
             mPlayer.setDataSource(url);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to open media source: " + url, e);
+        }
+    }
+
+    public void openFile(Context context, Uri uri) throws IOException {
+        if (mPlayer == null || uri == null) {
+            throw new IOException("No media player or video selected");
+        }
+        try {
+            // Context-aware source access supports content:// document picker URIs.
+            mPlayer.setDataSource(context, uri);
+        } catch (IllegalArgumentException | SecurityException | IllegalStateException e) {
+            throw new IOException("Unable to open selected video", e);
         }
     }
 
