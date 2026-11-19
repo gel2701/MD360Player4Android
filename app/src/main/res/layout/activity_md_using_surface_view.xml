@@ -256,6 +256,20 @@
    </ScrollView>
 
    <TextView
+       android:id="@+id/playback_status"
+       android:layout_width="wrap_content"
+       android:layout_height="wrap_content"
+       android:layout_alignParentTop="true"
+       android:layout_alignParentRight="true"
+       android:layout_margin="12dp"
+       android:padding="10dp"
+       android:background="#CC202020"
+       android:textColor="#FFFFFFFF"
+       android:textSize="14sp"
+       android:visibility="gone"
+       android:maxWidth="330dp" />
+
+   <TextView
        android:layout_alignParentBottom="true"
        android:id="@+id/hotspot_text"
        android:textColor="@android:color/white"

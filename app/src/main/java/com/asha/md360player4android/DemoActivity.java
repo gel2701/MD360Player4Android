@@ -1,6 +1,7 @@
 package com.asha.md360player4android;
 
 import android.content.ContentResolver;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.net.Uri;
@@ -78,7 +79,7 @@ public class DemoActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("video/*");
+                intent.setType("*/*"); // Allow camera exports with incorrect MIME types
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 startActivityForResult(intent, REQUEST_VIDEO);
             }
