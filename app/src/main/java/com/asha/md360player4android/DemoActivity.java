@@ -1,6 +1,7 @@
 package com.asha.md360player4android;
 
 import android.content.ContentResolver;
+import android.content.Intent;
 import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Bundle;
@@ -17,6 +18,8 @@ import android.widget.Toast;
  * hzqiujiadi ashqalcn@gmail.com
  */
 public class DemoActivity extends AppCompatActivity {
+
+    private static final int REQUEST_VIDEO = 1001;
 
     public static final String sPath = "file:///mnt/sdcard/vr/";
 
@@ -70,6 +73,17 @@ public class DemoActivity extends AppCompatActivity {
                 })
                 .init(R.id.spinner_url);
 
+        findViewById(R.id.pick_video_button).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("video/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivityForResult(intent, REQUEST_VIDEO);
+            }
+        });
+
         findViewById(R.id.video_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -107,6 +121,20 @@ public class DemoActivity extends AppCompatActivity {
                 RecyclerViewActivity.start(DemoActivity.this);
             }
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_VIDEO && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            try {
+                getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException ignored) {
+                // The picker grants temporary read permission even when persistence is unavailable.
+            }
+            MD360PlayerActivity.startVideo(this, uri);
+        }
     }
 
     private Uri getDrawableUri(@DrawableRes int resId) {
